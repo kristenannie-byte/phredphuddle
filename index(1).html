@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Five &amp; One</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+
+  :root {
+    --paper: #F6F1E4;
+    --paper-inset: #EFE7D3;
+    --ink: #2B2620;
+    --ink-soft: #6B6153;
+    --tile-face: #EFE1BF;
+    --tile-face-hover: #F4EAD0;
+    --tile-border: #C7AE7C;
+    --tile-text: #362B14;
+    --slot-border: #C9BDA1;
+    --slot-bg: #FBF8F0;
+    --walnut: #6E4A2E;
+    --walnut-dark: #593A22;
+    --solved: #3E6C4F;
+    --solved-bg: #E4EEE1;
+    --close: #B07C22;
+    --close-bg: #F7ECD4;
+    --wrong: #A6493B;
+    --wrong-bg: #F6E4E0;
+    --row-active-border: #6E4A2E;
+    --shadow: rgba(43, 38, 32, 0.16);
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --paper: #211D18;
+      --paper-inset: #2A251E;
+      --ink: #EFE7D6;
+      --ink-soft: #B4A997;
+      --tile-face: #3A3226;
+      --tile-face-hover: #453B2C;
+      --tile-border: #6B5A3D;
+      --tile-text: #F3E9CE;
+      --slot-border: #524739;
+      --slot-bg: #2A251E;
+      --walnut: #C6A26D;
+      --walnut-dark: #D8B685;
+      --solved: #7FBD93;
+      --solved-bg: #253128;
+      --close: #E0B25C;
+      --close-bg: #332A18;
+      --wrong: #E08A78;
+      --wrong-bg: #362420;
+      --row-active-border: #C6A26D;
+      --shadow: rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #211D18;
+    --paper-inset: #2A251E;
+    --ink: #EFE7D6;
+    --ink-soft: #B4A997;
+    --tile-face: #3A3226;
+    --tile-face-hover: #453B2C;
+    --tile-border: #6B5A3D;
+    --tile-text: #F3E9CE;
+    --slot-border: #524739;
+    --slot-bg: #2A251E;
+    --walnut: #C6A26D;
+    --walnut-dark: #D8B685;
+    --solved: #7FBD93;
+    --solved-bg: #253128;
+    --close: #E0B25C;
+    --close-bg: #332A18;
+    --wrong: #E08A78;
+    --wrong-bg: #362420;
+    --row-active-border: #C6A26D;
+    --shadow: rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px 64px;
+  }
+
+  .board {
+    width: 100%;
+    max-width: 560px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 22px;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-optical-sizing: auto;
+    font-size: clamp(30px, 7vw, 40px);
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+
+  h1 .accent {
+    font-style: italic;
+    color: var(--walnut);
+  }
+
+  .subhead {
+    color: var(--ink-soft);
+    font-size: 15px;
+    margin: 0 0 18px;
+    line-height: 1.5;
+  }
+
+  .status-bar {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--paper-inset);
+    border: 1px solid var(--slot-border);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  .pill strong {
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .hints-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 460px;
+    margin: 0 auto;
+  }
+
+  .hint-item {
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 8px 13px;
+    border-radius: 8px;
+    border: 1.5px dashed var(--slot-border);
+    color: var(--ink-soft);
+    text-align: left;
+  }
+
+  .hint-item .hint-num {
+    font-weight: 700;
+    margin-right: 6px;
+  }
+
+  .hint-item.unlocked {
+    border-style: solid;
+    border-color: var(--close);
+    background: var(--close-bg);
+    color: var(--close);
+  }
+
+  .rows {
+    margin: 26px 0 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .row-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .len-badge {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    border-radius: 6px;
+    background: var(--paper-inset);
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-ui);
+  }
+
+  .row {
+    display: flex;
+    gap: 7px;
+    padding: 6px;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    transition: border-color 0.15s ease, background 0.2s ease;
+    cursor: pointer;
+  }
+
+  .row.active {
+    border-color: var(--row-active-border);
+  }
+
+  .row.solved {
+    cursor: default;
+    background: var(--solved-bg);
+  }
+
+  .row.flash-close {
+    animation: flashClose 0.6s ease;
+  }
+  .row.flash-wrong {
+    animation: flashWrong 0.6s ease;
+  }
+
+  @keyframes flashClose {
+    0%, 100% { background: transparent; }
+    30% { background: var(--close-bg); }
+  }
+  @keyframes flashWrong {
+    0%, 100% { background: transparent; }
+    30% { background: var(--wrong-bg); }
+  }
+
+  .slot {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: var(--slot-bg);
+    border: 2px solid var(--slot-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-ui);
+    font-weight: 700;
+    font-size: 19px;
+    color: var(--tile-text);
+    user-select: none;
+  }
+
+  .slot.filled {
+    background: var(--tile-face);
+    border-color: var(--tile-border);
+    cursor: pointer;
+  }
+
+  .row.solved .slot {
+    background: transparent;
+    border-color: var(--solved);
+    color: var(--solved);
+    cursor: default;
+  }
+
+  .row.solved .slot.filled {
+    background: var(--solved-bg);
+  }
+
+  .feedback-row {
+    text-align: center;
+    font-size: 13.5px;
+    min-height: 20px;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+  .feedback-row.close { color: var(--close); font-weight: 600; }
+  .feedback-row.wrong { color: var(--wrong); font-weight: 600; }
+  .feedback-row.correct { color: var(--solved); font-weight: 600; }
+
+  .pool-label {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  .pool {
+    background: var(--paper-inset);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    min-height: 68px;
+  }
+
+  .tile {
+    width: 40px;
+    height: 40px;
+    border-radius: 7px;
+    background: var(--tile-face);
+    border: 2px solid var(--tile-border);
+    color: var(--tile-text);
+    font-family: var(--font-ui);
+    font-weight: 700;
+    font-size: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    box-shadow: 0 2px 0 var(--tile-border);
+    transition: transform 0.08s ease, background 0.15s ease;
+  }
+
+  .slot.filled {
+    cursor: grab;
+  }
+
+  .slot.drop-hover {
+    border-color: var(--walnut);
+    background: var(--tile-face-hover);
+  }
+  #pool.drop-hover {
+    outline: 2px dashed var(--walnut);
+    outline-offset: -2px;
+  }
+
+  .tile:hover {
+    background: var(--tile-face-hover);
+    transform: translateY(-1px);
+  }
+  .tile:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 var(--tile-border);
+  }
+
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  button.ctrl {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 10px 16px;
+    border-radius: 9px;
+    border: 1.5px solid var(--slot-border);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  button.ctrl:hover {
+    border-color: var(--walnut);
+    color: var(--walnut);
+  }
+
+  button.ctrl.primary {
+    background: var(--walnut);
+    border-color: var(--walnut);
+    color: var(--paper);
+  }
+  button.ctrl.primary:hover {
+    background: var(--walnut-dark);
+    border-color: var(--walnut-dark);
+    color: var(--paper);
+  }
+
+  .win-banner {
+    display: none;
+    text-align: center;
+    margin-top: 18px;
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--solved-bg);
+    border: 1.5px solid var(--solved);
+    color: var(--solved);
+    font-weight: 700;
+    font-family: var(--font-display);
+    font-size: 19px;
+  }
+  .win-banner.show { display: block; }
+
+  @media (max-width: 420px) {
+    .slot { width: 36px; height: 36px; font-size: 16px; }
+    .tile { width: 34px; height: 34px; font-size: 15px; }
+    .len-badge { width: 20px; height: 20px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="board">
+  <header>
+    <h1>Five <span class="accent">&amp;</span> One</h1>
+    <p class="subhead">Build four 5-letter words and one 4-letter word from the tiles below.<br>All five share a hidden theme.</p>
+    <div class="status-bar">
+      <span class="pill">Unsuccessful attempts <strong id="attemptCount">0</strong></span>
+    </div>
+    <div class="hints-panel" id="hintsPanel"></div>
+  </header>
+
+  <div class="rows" id="rows"></div>
+  <div class="feedback-row" id="feedback">Drag tiles into any slot, in any order — drop one on another to swap them. (Or tap a row, then tap tiles to fill it in.)</div>
+
+  <div class="pool-label">Letter bank — tap a tile to place it in the selected row</div>
+  <div class="pool" id="pool"></div>
+
+  <div class="controls">
+    <button class="ctrl" id="clearBtn">Clear selected row</button>
+    <button class="ctrl" id="shuffleBtn">Shuffle bank</button>
+    <button class="ctrl primary" id="newBtn">New puzzle</button>
+  </div>
+
+  <div class="win-banner" id="winBanner"></div>
+</div>
+
+<script>
+(function(){
+  // ── CONFIGURE YOUR PUZZLE SHEET HERE ──────────────────────────────────
+  // In Google Sheets: File → Share → Publish to web → select your sheet,
+  // choose "Comma-separated values (.csv)" → Publish, then paste that
+  // URL below. Leave it blank to use the built-in puzzles only.
+  // Columns expected (in order): Word1(5), Word2(5), Word3(5), Word4(5),
+  // Word5(4), Hint1, Hint2, Hint3 — one puzzle per row, header row first.
+  const SHEET_CSV_URL = "";
+  // ───────────────────────────────────────────────────────────────────
+
+  const DEFAULT_PUZZLES = [
+    { words: ["PILOT","NURSE","JUDGE","ACTOR","CHEF"],
+      hints: ["The theme is professions.", "One profession rhymes with \"fudge.\"", "Another profession rhymes with \"curse.\""] },
+    { words: ["STORM","CLOUD","FROST","SLEET","HAIL"],
+      hints: ["The theme is weather.", "One word rhymes with \"norm.\"", "Another word is a chilly coating on your car windshield."] },
+    { words: ["KNIFE","WHISK","TONGS","PLATE","BOWL"],
+      hints: ["The theme is kitchen items.", "One tool is what you'd use to beat eggs.", "Another is what your dinner sits on."] },
+    { words: ["WHALE","SHARK","OTTER","SQUID","CRAB"],
+      hints: ["The theme is sea creatures.", "One has eight arms.", "Another sidesteps everywhere it goes."] },
+  ];
+
+  let PUZZLES = DEFAULT_PUZZLES;
+
+  function parseSheetRows(rows){
+    const dataRows = rows.slice(1); // skip header row
+    const puzzles = [];
+    dataRows.forEach(row => {
+      if (!row || row.length < 8) return;
+      const words = row.slice(0, 5).map(w => (w || '').trim().toUpperCase());
+      const hints = row.slice(5, 8).map(h => (h || '').trim()).filter(h => h.length > 0);
+      if (words.some(w => !w)) return; // incomplete row, skip
+      const lengthsOk = words[0].length === 5 && words[1].length === 5 &&
+                         words[2].length === 5 && words[3].length === 5 &&
+                         words[4].length === 4;
+      if (!lengthsOk){
+        console.warn('Skipping sheet row with unexpected word lengths:', words);
+        return;
+      }
+      puzzles.push({ words, hints });
+    });
+    return puzzles;
+  }
+
+  async function loadPuzzlesFromSheet(url){
+    if (!url) return null;
+    try {
+      const bust = (url.includes('?') ? '&' : '?') + 'cb=' + Date.now();
+      const res = await fetch(url + bust);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const parsed = Papa.parse(text.trim(), { skipEmptyLines: true });
+      const puzzles = parseSheetRows(parsed.data || []);
+      return puzzles.length ? puzzles : null;
+    } catch (err){
+      console.warn('Could not load puzzles from the sheet — using built-in puzzles instead.', err);
+      return null;
+    }
+  }
+
+  const HINT_THRESHOLDS = [10, 15, 20];
+  let puzzleIndex = 0;
+  let words = [];       // {answer, length, solved}
+  let pool = [];         // {id, char, placed}
+  let rows = [];         // {length, slots: [tileId|null], solved: bool, solvedAnswer: null}
+  let activeRow = 0;
+  let unsuccessful = 0;
+  let tileSeq = 0;
+
+  const rowsEl = document.getElementById('rows');
+  const poolEl = document.getElementById('pool');
+  const feedbackEl = document.getElementById('feedback');
+  const attemptCountEl = document.getElementById('attemptCount');
+  const hintsPanelEl = document.getElementById('hintsPanel');
+  const winBannerEl = document.getElementById('winBanner');
+
+  function shuffleArr(arr){
+    for (let i = arr.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i+1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function normalize(s){ return s.toUpperCase(); }
+  function sortedChars(s){ return normalize(s).split('').sort().join(''); }
+
+  function startPuzzle(idx){
+    puzzleIndex = idx;
+    const puzzle = PUZZLES[idx];
+    words = puzzle.words.map(w => ({ answer: w, length: w.length, solved: false }));
+
+    // build rows: 4 of length 5, 1 of length 4, order shuffled so the
+    // 4-letter row isn't always last
+    const lengths = words.map(w => w.length);
+    shuffleArr(lengths);
+    rows = lengths.map(len => ({ length: len, slots: new Array(len).fill(null), solved: false, solvedAnswer: null }));
+
+    // build pool tiles from all letters of all words
+    let letters = [];
+    words.forEach(w => { letters = letters.concat(w.answer.split('')); });
+    tileSeq = 0;
+    pool = shuffleArr(letters).map(ch => ({ id: 't' + (tileSeq++), char: ch, placed: false }));
+
+    activeRow = 0;
+    unsuccessful = 0;
+    attemptCountEl.textContent = '0';
+    winBannerEl.classList.remove('show');
+    winBannerEl.textContent = '';
+    feedbackEl.textContent = 'Drag tiles into any slot, in any order — drop one on another to swap them. (Or tap a row, then tap tiles to fill it in.)';
+    feedbackEl.className = 'feedback-row';
+    renderHints();
+    render();
+  }
+
+  function renderHints(forceAll){
+    hintsPanelEl.innerHTML = '';
+    const hints = PUZZLES[puzzleIndex].hints || [];
+    hints.forEach((hintText, i) => {
+      const threshold = HINT_THRESHOLDS[i] || (HINT_THRESHOLDS[HINT_THRESHOLDS.length - 1] + (i + 1) * 5);
+      const unlocked = forceAll || unsuccessful >= threshold;
+      const item = document.createElement('div');
+      item.className = 'hint-item' + (unlocked ? ' unlocked' : '');
+      item.innerHTML = unlocked
+        ? '<span class="hint-num">Hint ' + (i + 1) + '</span>' + hintText
+        : '<span class="hint-num">Hint ' + (i + 1) + '</span>🔒 unlocks after ' + threshold + ' unsuccessful attempts';
+      hintsPanelEl.appendChild(item);
+    });
+  }
+
+  function findTile(id){ return pool.find(t => t.id === id); }
+
+  function render(){
+    // rows
+    rowsEl.innerHTML = '';
+    rows.forEach((row, ri) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'row-wrap';
+
+      const badge = document.createElement('div');
+      badge.className = 'len-badge';
+      badge.textContent = row.length;
+      wrap.appendChild(badge);
+
+      const rowEl = document.createElement('div');
+      rowEl.className = 'row' + (ri === activeRow ? ' active' : '') + (row.solved ? ' solved' : '');
+      rowEl.addEventListener('click', () => {
+        if (!row.solved) { activeRow = ri; render(); }
+      });
+
+      row.slots.forEach((tileId, si) => {
+        const slotEl = document.createElement('div');
+        slotEl.className = 'slot' + (tileId ? ' filled' : '');
+        slotEl.dataset.row = ri;
+        slotEl.dataset.slot = si;
+        if (tileId){
+          const t = findTile(tileId);
+          slotEl.textContent = t ? t.char : '';
+          if (!row.solved){
+            slotEl.dataset.tileId = tileId;
+            attachDragAndTap(slotEl, tileId, { type: 'slot', rowIdx: ri, slotIdx: si });
+          }
+        }
+        rowEl.appendChild(slotEl);
+      });
+
+      wrap.appendChild(rowEl);
+      rowsEl.appendChild(wrap);
+    });
+
+    // pool
+    poolEl.innerHTML = '';
+    pool.filter(t => !t.placed).forEach(t => {
+      const tileEl = document.createElement('div');
+      tileEl.className = 'tile';
+      tileEl.textContent = t.char;
+      tileEl.dataset.tileId = t.id;
+      attachDragAndTap(tileEl, t.id, { type: 'pool' });
+      poolEl.appendChild(tileEl);
+    });
+  }
+
+  // --- Drag-and-drop (pointer events) with tap-to-place fallback ---
+  const DRAG_THRESHOLD = 6;
+  let dragState = null;
+
+  function attachDragAndTap(el, tileId, from){
+    el.style.touchAction = 'none';
+    el.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      dragState = {
+        tileId, from,
+        startX: e.clientX, startY: e.clientY,
+        dragging: false,
+        ghost: null,
+        sourceEl: el
+      };
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => onPointerMove(e));
+    el.addEventListener('pointerup', (e) => onPointerUp(e));
+    el.addEventListener('pointercancel', () => cancelDrag());
+  }
+
+  function onPointerMove(e){
+    if (!dragState) return;
+    const dx = e.clientX - dragState.startX;
+    const dy = e.clientY - dragState.startY;
+    if (!dragState.dragging && Math.hypot(dx, dy) > DRAG_THRESHOLD){
+      dragState.dragging = true;
+      const rect = dragState.sourceEl.getBoundingClientRect();
+      const ghost = dragState.sourceEl.cloneNode(true);
+      ghost.style.position = 'fixed';
+      ghost.style.left = rect.left + 'px';
+      ghost.style.top = rect.top + 'px';
+      ghost.style.width = rect.width + 'px';
+      ghost.style.height = rect.height + 'px';
+      ghost.style.margin = '0';
+      ghost.style.pointerEvents = 'none';
+      ghost.style.zIndex = '999';
+      ghost.style.opacity = '0.9';
+      ghost.style.transform = 'scale(1.08) rotate(-2deg)';
+      ghost.style.boxShadow = '0 6px 14px var(--shadow)';
+      document.body.appendChild(ghost);
+      dragState.ghost = ghost;
+      dragState.sourceEl.style.opacity = '0.25';
+    }
+    if (dragState.dragging && dragState.ghost){
+      const rect = dragState.sourceEl.getBoundingClientRect();
+      dragState.ghost.style.left = (rect.left + dx) + 'px';
+      dragState.ghost.style.top = (rect.top + dy) + 'px';
+      clearDropHover();
+      const target = elementAt(e.clientX, e.clientY);
+      if (target) target.classList.add('drop-hover');
+    }
+  }
+
+  function onPointerUp(e){
+    if (!dragState) return;
+    clearDropHover();
+    if (dragState.dragging){
+      const target = elementAt(e.clientX, e.clientY);
+      handleDrop(dragState.tileId, dragState.from, target);
+      if (dragState.ghost) dragState.ghost.remove();
+    } else {
+      handleTap(dragState.tileId, dragState.from);
+    }
+    dragState = null;
+  }
+
+  function cancelDrag(){
+    if (dragState && dragState.ghost) dragState.ghost.remove();
+    clearDropHover();
+    dragState = null;
+    render();
+  }
+
+  function clearDropHover(){
+    document.querySelectorAll('.drop-hover').forEach(el => el.classList.remove('drop-hover'));
+  }
+
+  function elementAt(x, y){
+    const slotEl = document.elementsFromPoint(x, y).find(el => el.classList && el.classList.contains('slot'));
+    if (slotEl) return slotEl;
+    const poolEl2 = document.elementsFromPoint(x, y).find(el => el === poolEl || (el.closest && el.closest('#pool')));
+    if (poolEl2) return poolEl;
+    return null;
+  }
+
+  function handleTap(tileId, from){
+    if (from.type === 'pool'){
+      // tap a bank tile: drop into the active row's next empty slot
+      const row = rows[activeRow];
+      if (!row || row.solved) return;
+      const emptyIdx = row.slots.findIndex(s => s === null);
+      if (emptyIdx === -1) return;
+      moveTileTo(tileId, { type: 'slot', rowIdx: activeRow, slotIndex: emptyIdx });
+    } else {
+      // tap a placed tile: send it back to the bank
+      moveTileTo(tileId, { type: 'pool' });
+    }
+    render();
+    maybeAutoCheck([from.type === 'slot' ? from.rowIdx : activeRow]);
+  }
+
+  function handleDrop(tileId, from, target){
+    if (!target){ render(); return; }
+    const affectedRows = new Set();
+    if (from.type === 'slot') affectedRows.add(from.rowIdx);
+
+    if (target === poolEl || target.id === 'pool'){
+      moveTileTo(tileId, { type: 'pool' });
+    } else if (target.classList && target.classList.contains('slot')){
+      const rowIdx = Number(target.dataset.row);
+      const slotIdx = Number(target.dataset.slot);
+      if (rows[rowIdx].solved){ render(); return; }
+      moveTileTo(tileId, { type: 'slot', rowIdx, slotIndex: slotIdx });
+      affectedRows.add(rowIdx);
+    }
+    render();
+    maybeAutoCheck([...affectedRows]);
+  }
+
+  function moveTileTo(tileId, target){
+    const tile = findTile(tileId);
+    if (!tile) return;
+    let fromRow = null, fromSlot = null;
+    rows.forEach((r, ri) => r.slots.forEach((id, si) => { if (id === tileId){ fromRow = ri; fromSlot = si; } }));
+
+    if (target.type === 'pool'){
+      if (fromRow !== null) rows[fromRow].slots[fromSlot] = null;
+      tile.placed = false;
+      return;
+    }
+
+    const destRow = rows[target.rowIdx];
+    if (destRow.solved) return;
+    const destTileId = destRow.slots[target.slotIndex];
+    if (destTileId === tileId) return; // dropped on itself
+
+    if (fromRow !== null) rows[fromRow].slots[fromSlot] = null;
+
+    if (destTileId){
+      // swap: bump the tile that was there to the dragged tile's old spot
+      const destTile = findTile(destTileId);
+      if (fromRow !== null){
+        rows[fromRow].slots[fromSlot] = destTileId;
+      } else {
+        destTile.placed = false;
+      }
+    }
+    destRow.slots[target.slotIndex] = tileId;
+    tile.placed = true;
+  }
+
+  function maybeAutoCheck(rowIdxs){
+    rowIdxs.forEach(ri => {
+      if (ri === null || ri === undefined) return;
+      const row = rows[ri];
+      if (row && !row.solved && row.slots.every(s => s !== null)){
+        setTimeout(() => checkRow(ri), 150);
+      }
+    });
+  }
+
+  function clearRow(rowIdx){
+    const row = rows[rowIdx];
+    if (!row || row.solved) return;
+    row.slots.forEach((tileId, si) => {
+      if (tileId){
+        const t = findTile(tileId);
+        if (t) t.placed = false;
+        row.slots[si] = null;
+      }
+    });
+    render();
+  }
+
+  function checkRow(rowIdx){
+    const row = rows[rowIdx];
+    if (row.solved) return;
+    const attemptLetters = row.slots.map(id => findTile(id).char).join('');
+    const upper = normalize(attemptLetters);
+    const candidates = words.filter(w => !w.solved && w.length === row.length);
+
+    const exact = candidates.find(w => normalize(w.answer) === upper);
+    if (exact){
+      exact.solved = true;
+      row.solved = true;
+      row.solvedAnswer = exact.answer;
+      feedbackEl.textContent = '✓ ' + exact.answer + ' — that is one of the five.';
+      feedbackEl.className = 'feedback-row correct';
+      const nextUnsolved = rows.findIndex(r => !r.solved);
+      if (nextUnsolved !== -1) activeRow = nextUnsolved;
+      render();
+      checkWin();
+      return;
+    }
+
+    const anagram = candidates.find(w => sortedChars(w.answer) === sortedChars(upper));
+    const rowEl = rowsEl.children[rowIdx].querySelector('.row');
+    if (anagram){
+      feedbackEl.textContent = 'So close — right letters, wrong word.';
+      feedbackEl.className = 'feedback-row close';
+      rowEl.classList.add('flash-close');
+    } else {
+      feedbackEl.textContent = 'Not a match. Tiles go back to the bank.';
+      feedbackEl.className = 'feedback-row wrong';
+      rowEl.classList.add('flash-wrong');
+    }
+
+    unsuccessful += 1;
+    attemptCountEl.textContent = String(unsuccessful);
+    renderHints();
+
+    setTimeout(() => {
+      clearRow(rowIdx);
+    }, 650);
+  }
+
+  function checkWin(){
+    if (words.every(w => w.solved)){
+      renderHints(true);
+      const recap = (PUZZLES[puzzleIndex].hints && PUZZLES[puzzleIndex].hints[0]) || '';
+      winBannerEl.textContent = '🎉 Solved it! ' + recap;
+      winBannerEl.classList.add('show');
+      feedbackEl.textContent = '';
+    }
+  }
+
+  document.getElementById('clearBtn').addEventListener('click', () => clearRow(activeRow));
+  document.getElementById('shuffleBtn').addEventListener('click', () => {
+    const unplaced = pool.filter(t => !t.placed);
+    shuffleArr(unplaced);
+    const placed = pool.filter(t => t.placed);
+    pool = placed.concat(unplaced);
+    render();
+  });
+  document.getElementById('newBtn').addEventListener('click', () => {
+    const next = (puzzleIndex + 1) % PUZZLES.length;
+    startPuzzle(next);
+  });
+
+  async function init(){
+    const loaded = await loadPuzzlesFromSheet(SHEET_CSV_URL);
+    PUZZLES = (loaded && loaded.length) ? loaded : DEFAULT_PUZZLES;
+    startPuzzle(0);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
