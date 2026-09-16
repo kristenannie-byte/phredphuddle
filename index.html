@@ -7,34 +7,62 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- PapaParse: a small library used to read the puzzle spreadsheet (CSV)
+     reliably, including tricky cases like commas or quotes inside a hint. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     FUTURE FEATURE — Google Sign-In script (currently disabled)
+     This loads Google's "Sign In with Google" library. It's only needed
+     if you turn on the timer + leaderboard feature below. Uncomment this
+     tag when you're ready to enable that feature (see the big commented
+     block near the bottom of the <script> section for full instructions).
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+     END FUTURE FEATURE (sign-in script)
+     ════════════════════════════════════════════════════════════════════ -->
+
 <style>
 
+  /* ============================================================
+     COLOR THEME (CSS variables)
+     Every color in this page is defined once here as a variable
+     (like --paper, --ink, --solved) and reused everywhere below.
+     Change a color in ONE place here and it updates the whole game.
+     There are three copies of this palette: the normal (light) theme,
+     a dark-mode version that kicks in automatically if the visitor's
+     device is set to dark mode, and an explicit dark override — this
+     lets the game look right regardless of how it's viewed.
+     ============================================================ */
   :root {
-    --paper: #F6F1E4;
-    --paper-inset: #EFE7D3;
-    --ink: #2B2620;
-    --ink-soft: #6B6153;
-    --tile-face: #EFE1BF;
+    --paper: #F6F1E4;          /* page background */
+    --paper-inset: #EFE7D3;    /* slightly darker panels (pool, hints) */
+    --ink: #2B2620;            /* main text color */
+    --ink-soft: #6B6153;       /* secondary/muted text */
+    --tile-face: #EFE1BF;      /* letter tile background */
     --tile-face-hover: #F4EAD0;
     --tile-border: #C7AE7C;
-    --tile-text: #362B14;
-    --slot-border: #C9BDA1;
+    --tile-text: #362B14;      /* letter color on tiles */
+    --slot-border: #C9BDA1;    /* empty slot outline */
     --slot-bg: #FBF8F0;
-    --walnut: #6E4A2E;
+    --walnut: #6E4A2E;         /* accent color (buttons, active row) */
     --walnut-dark: #593A22;
-    --solved: #3E6C4F;
+    --solved: #3E6C4F;         /* green = correct word */
     --solved-bg: #E4EEE1;
-    --close: #B07C22;
+    --close: #B07C22;          /* amber = "so close" / hints */
     --close-bg: #F7ECD4;
-    --wrong: #A6493B;
+    --wrong: #A6493B;          /* red = incorrect attempt */
     --wrong-bg: #F6E4E0;
     --row-active-border: #6E4A2E;
     --shadow: rgba(43, 38, 32, 0.16);
-    --font-display: "Fraunces", Georgia, "Times New Roman", serif;
-    --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif; /* headline font */
+    --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; /* body font */
   }
 
+  /* Dark mode, automatic: applies if the visitor's OS/browser prefers dark,
+     UNLESS the page has been explicitly forced to light mode. */
   :root:not([data-theme="light"]) {
     @media (prefers-color-scheme: dark) {
       --paper: #211D18;
@@ -60,6 +88,8 @@
     }
   }
 
+  /* Dark mode, forced: applies if the page is explicitly set to dark,
+     regardless of the visitor's device setting. */
   :root[data-theme="dark"] {
     --paper: #211D18;
     --paper-inset: #2A251E;
@@ -101,6 +131,8 @@
     max-width: 560px;
   }
 
+  /* ---------- Header: title, subtitle, status pills, hints ---------- */
+
   header {
     text-align: center;
     margin-bottom: 22px;
@@ -127,6 +159,7 @@
     line-height: 1.5;
   }
 
+  /* Row of small rounded "pills" showing status (e.g. attempt count) */
   .status-bar {
     display: flex;
     justify-content: center;
@@ -153,6 +186,7 @@
     font-weight: 700;
   }
 
+  /* The progressive hints list (locked/unlocked cards) */
   .hints-panel {
     display: flex;
     flex-direction: column;
@@ -176,12 +210,15 @@
     margin-right: 6px;
   }
 
+  /* Once unlocked, a hint switches from dashed/muted to solid/amber */
   .hint-item.unlocked {
     border-style: solid;
     border-color: var(--close);
     background: var(--close-bg);
     color: var(--close);
   }
+
+  /* ---------- Word rows (the 4× five-letter + 1× four-letter grids) ---------- */
 
   .rows {
     margin: 26px 0 22px;
@@ -190,6 +227,7 @@
     gap: 10px;
   }
 
+  /* Each row is: [length badge] [row of letter slots] */
   .row-wrap {
     display: flex;
     align-items: center;
@@ -197,6 +235,7 @@
     justify-content: center;
   }
 
+  /* Small circle/square showing "5" or "4" so players know the target length */
   .len-badge {
     width: 24px;
     height: 24px;
@@ -222,15 +261,18 @@
     cursor: pointer;
   }
 
+  /* The "selected" row (used by the tap-to-place fallback) gets a border */
   .row.active {
     border-color: var(--row-active-border);
   }
 
+  /* A fully solved row is locked green and no longer clickable */
   .row.solved {
     cursor: default;
     background: var(--solved-bg);
   }
 
+  /* Brief color flash when a guess is wrong or "close" */
   .row.flash-close {
     animation: flashClose 0.6s ease;
   }
@@ -247,6 +289,7 @@
     30% { background: var(--wrong-bg); }
   }
 
+  /* A single letter box inside a row */
   .slot {
     width: 44px;
     height: 44px;
@@ -266,7 +309,7 @@
   .slot.filled {
     background: var(--tile-face);
     border-color: var(--tile-border);
-    cursor: pointer;
+    cursor: grab; /* filled slots can be dragged back out */
   }
 
   .row.solved .slot {
@@ -280,6 +323,16 @@
     background: var(--solved-bg);
   }
 
+  /* Highlight a slot while a dragged tile is hovering over it */
+  .slot.drop-hover {
+    border-color: var(--walnut);
+    background: var(--tile-face-hover);
+  }
+  #pool.drop-hover {
+    outline: 2px dashed var(--walnut);
+    outline-offset: -2px;
+  }
+
   .feedback-row {
     text-align: center;
     font-size: 13.5px;
@@ -290,6 +343,8 @@
   .feedback-row.close { color: var(--close); font-weight: 600; }
   .feedback-row.wrong { color: var(--wrong); font-weight: 600; }
   .feedback-row.correct { color: var(--solved); font-weight: 600; }
+
+  /* ---------- Letter bank (the pool of unplaced tiles) ---------- */
 
   .pool-label {
     font-size: 12.5px;
@@ -327,19 +382,6 @@
     transition: transform 0.08s ease, background 0.15s ease;
   }
 
-  .slot.filled {
-    cursor: grab;
-  }
-
-  .slot.drop-hover {
-    border-color: var(--walnut);
-    background: var(--tile-face-hover);
-  }
-  #pool.drop-hover {
-    outline: 2px dashed var(--walnut);
-    outline-offset: -2px;
-  }
-
   .tile:hover {
     background: var(--tile-face-hover);
     transform: translateY(-1px);
@@ -348,6 +390,8 @@
     transform: translateY(1px);
     box-shadow: 0 1px 0 var(--tile-border);
   }
+
+  /* ---------- Buttons ---------- */
 
   .controls {
     display: flex;
@@ -385,6 +429,8 @@
     color: var(--paper);
   }
 
+  /* ---------- Win banner ---------- */
+
   .win-banner {
     display: none;
     text-align: center;
@@ -400,11 +446,96 @@
   }
   .win-banner.show { display: block; }
 
+  /* Small screens: shrink tiles/slots so 5-wide rows still fit comfortably */
   @media (max-width: 420px) {
     .slot { width: 36px; height: 36px; font-size: 16px; }
     .tile { width: 34px; height: 34px; font-size: 15px; }
     .len-badge { width: 20px; height: 20px; font-size: 11px; }
   }
+
+  /* ════════════════════════════════════════════════════════════════
+     FUTURE FEATURE — styles for the timer / sign-in / leaderboard UI
+     (currently disabled — see the matching HTML and JS blocks for how
+     to turn this feature on later)
+     ════════════════════════════════════════════════════════════════
+
+  .auth-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 12px;
+    min-height: 30px;
+  }
+
+  .signed-in-as {
+    font-size: 13px;
+    color: var(--ink-soft);
+    background: var(--paper-inset);
+    border: 1px solid var(--slot-border);
+    border-radius: 999px;
+    padding: 6px 14px;
+  }
+
+  .leaderboard-panel {
+    margin-top: 22px;
+    background: var(--paper-inset);
+    border-radius: 14px;
+    padding: 16px 18px;
+  }
+
+  .leaderboard-panel h3 {
+    font-family: var(--font-display);
+    font-size: 17px;
+    margin: 0 0 10px;
+    text-align: center;
+  }
+
+  .leaderboard-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .leaderboard-list li {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    padding: 7px 12px;
+    background: var(--paper);
+    border-radius: 8px;
+    border: 1px solid var(--slot-border);
+  }
+
+  .leaderboard-list li .rank {
+    font-weight: 700;
+    color: var(--walnut);
+    margin-right: 8px;
+  }
+
+  .leaderboard-list li .lb-time {
+    font-weight: 700;
+    color: var(--solved);
+  }
+
+  .leaderboard-empty {
+    text-align: center;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+
+  .sign-in-prompt {
+    text-align: center;
+    font-size: 13.5px;
+    margin-top: 10px;
+    color: var(--ink-soft);
+  }
+
+     END FUTURE FEATURE (styles)
+     ════════════════════════════════════════════════════════════════ */
+
 </style>
 </head>
 <body>
@@ -412,10 +543,29 @@
   <header>
     <h1>Five <span class="accent">&amp;</span> One</h1>
     <p class="subhead">Build four 5-letter words and one 4-letter word from the tiles below.<br>All five share a hidden theme.</p>
+
     <div class="status-bar">
+      <!-- FUTURE FEATURE: a "Time" pill went here, showing a live stopwatch.
+           <span class="pill">Time <strong id="timerDisplay">0:00</strong></span>
+      -->
       <span class="pill">Unsuccessful attempts <strong id="attemptCount">0</strong></span>
     </div>
+
     <div class="hints-panel" id="hintsPanel"></div>
+
+    <!-- ════════════════════════════════════════════════════════════
+         FUTURE FEATURE — Google Sign-In button area (currently disabled)
+         Uncomment this block, plus the matching CSS and JS blocks, and
+         fill in GOOGLE_CLIENT_ID / LEADERBOARD_API_URL in the script
+         below, to turn on "sign in + leaderboard."
+
+    <div class="auth-area" id="authArea">
+      <div id="gSignInDiv"></div>
+      <span class="signed-in-as" id="signedInAs" style="display:none;"></span>
+    </div>
+
+         END FUTURE FEATURE (sign-in markup)
+         ════════════════════════════════════════════════════════════ -->
   </header>
 
   <div class="rows" id="rows"></div>
@@ -427,23 +577,71 @@
   <div class="controls">
     <button class="ctrl" id="clearBtn">Clear selected row</button>
     <button class="ctrl" id="shuffleBtn">Shuffle bank</button>
-    <button class="ctrl primary" id="newBtn">New puzzle</button>
   </div>
 
   <div class="win-banner" id="winBanner"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       FUTURE FEATURE — Leaderboard panel (currently disabled)
+
+  <div class="leaderboard-panel" id="leaderboardPanel" style="display:none;">
+    <h3>🏆 Fastest solves</h3>
+    <ol class="leaderboard-list" id="leaderboardList"></ol>
+  </div>
+
+       END FUTURE FEATURE (leaderboard markup)
+       ════════════════════════════════════════════════════════════════ -->
 </div>
 
 <script>
 (function(){
-  // ── CONFIGURE YOUR PUZZLE SHEET HERE ──────────────────────────────────
+
+  // ══════════════════════════════════════════════════════════════════
+  // CONFIGURATION
+  // These are the only lines you should normally need to touch.
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── Puzzle source ────────────────────────────────────────────────
   // In Google Sheets: File → Share → Publish to web → select your sheet,
   // choose "Comma-separated values (.csv)" → Publish, then paste that
-  // URL below. Leave it blank to use the built-in puzzles only.
-  // Columns expected (in order): Word1(5), Word2(5), Word3(5), Word4(5),
-  // Word5(4), Hint1, Hint2, Hint3 — one puzzle per row, header row first.
+  // URL below. Leave it blank ("") to use the 4 built-in example puzzles
+  // instead (handy for testing, or while a sheet isn't set up yet).
+  //
+  // Expected columns, in order, ONE PUZZLE PER ROW, with a header row
+  // first (the header row's text doesn't matter, it's just skipped):
+  //   Word1(5 letters), Word2(5), Word3(5), Word4(5), Word5(4 letters),
+  //   Hint1, Hint2, Hint3
+  //
+  // NOTE: fetching an outside URL like this only works once the game is
+  // hosted on a real website (e.g. GitHub Pages). It will silently fall
+  // back to the built-in puzzles if the fetch is blocked or fails —
+  // which is exactly what happens if you preview this file on claude.ai,
+  // since that sandbox doesn't allow outside network requests.
   const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1UaLEmTgEUfoulhRw5w7DiWiIqKu-VQmfRiWmWpbcyEY/edit?usp=sharing";
-  // ───────────────────────────────────────────────────────────────────
 
+  // ══════════════════════════════════════════════════════════════════
+  // FUTURE FEATURE — Leaderboard configuration (currently unused)
+  // These two constants are only read by the disabled timer/sign-in/
+  // leaderboard code further down this file. To turn that feature on:
+  //   1. Uncomment the HTML block for the sign-in button (above) and
+  //      the leaderboard panel (above), and the CSS block (in <style>).
+  //   2. Uncomment the Google Sign-In <script> tag in the <head>.
+  //   3. Uncomment the big JS block below labelled
+  //      "FUTURE FEATURE — Timer, Google Sign-In, and Leaderboard".
+  //   4. Fill in the two values below and follow the setup steps
+  //      (OAuth Client ID + Apps Script Web App) previously provided.
+  // const GOOGLE_CLIENT_ID = "";
+  // const LEADERBOARD_API_URL = "";
+  // ══════════════════════════════════════════════════════════════════
+
+
+  // ══════════════════════════════════════════════════════════════════
+  // BUILT-IN EXAMPLE PUZZLES
+  // Used only when SHEET_CSV_URL is blank, or if loading the sheet fails.
+  // Each puzzle: 4 five-letter words + 1 four-letter word, all sharing
+  // a theme, plus 3 progressively-revealed hints (see HINT_THRESHOLDS
+  // below for when each one unlocks).
+  // ══════════════════════════════════════════════════════════════════
   const DEFAULT_PUZZLES = [
     { words: ["PILOT","NURSE","JUDGE","ACTOR","CHEF"],
       hints: ["The theme is professions.", "One profession rhymes with \"fudge.\"", "Another profession rhymes with \"curse.\""] },
@@ -455,16 +653,22 @@
       hints: ["The theme is sea creatures.", "One has eight arms.", "Another sidesteps everywhere it goes."] },
   ];
 
+  // The puzzle list actually in use. Starts as the built-in list, and
+  // gets replaced with whatever loadPuzzlesFromSheet() returns, if
+  // anything, once init() runs at the bottom of this file.
   let PUZZLES = DEFAULT_PUZZLES;
 
+  // Turns raw CSV rows (arrays of strings) into puzzle objects, skipping
+  // the header row and any row that's incomplete or has the wrong word
+  // lengths (so one typo in the sheet can't silently break the game).
   function parseSheetRows(rows){
     const dataRows = rows.slice(1); // skip header row
     const puzzles = [];
     dataRows.forEach(row => {
-      if (!row || row.length < 8) return;
+      if (!row || row.length < 8) return; // not enough columns, skip
       const words = row.slice(0, 5).map(w => (w || '').trim().toUpperCase());
       const hints = row.slice(5, 8).map(h => (h || '').trim()).filter(h => h.length > 0);
-      if (words.some(w => !w)) return; // incomplete row, skip
+      if (words.some(w => !w)) return; // a word column was empty, skip
       const lengthsOk = words[0].length === 5 && words[1].length === 5 &&
                          words[2].length === 5 && words[3].length === 5 &&
                          words[4].length === 4;
@@ -477,9 +681,14 @@
     return puzzles;
   }
 
+  // Fetches the published Google Sheet CSV and parses it into puzzles.
+  // Returns null (rather than throwing) on any failure, so the caller
+  // can gracefully fall back to DEFAULT_PUZZLES.
   async function loadPuzzlesFromSheet(url){
-    if (!url) return null;
+    if (!url) return null; // no sheet configured — use built-ins
     try {
+      // Cache-bust so we always get the latest published version,
+      // rather than a stale cached copy of the CSV.
       const bust = (url.includes('?') ? '&' : '?') + 'cb=' + Date.now();
       const res = await fetch(url + bust);
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -493,15 +702,24 @@
     }
   }
 
+  // At these unsuccessful-attempt counts, hint 1 / 2 / 3 unlock.
   const HINT_THRESHOLDS = [10, 15, 20];
-  let puzzleIndex = 0;
-  let words = [];       // {answer, length, solved}
-  let pool = [];         // {id, char, placed}
-  let rows = [];         // {length, slots: [tileId|null], solved: bool, solvedAnswer: null}
-  let activeRow = 0;
-  let unsuccessful = 0;
-  let tileSeq = 0;
 
+  // ══════════════════════════════════════════════════════════════════
+  // GAME STATE
+  // Plain variables holding "what's true right now." Nothing fancy —
+  // render() (further down) reads these and rebuilds the on-screen
+  // HTML from scratch every time something changes.
+  // ══════════════════════════════════════════════════════════════════
+  let puzzleIndex = 0;    // which entry of PUZZLES is currently active
+  let words = [];         // the 5 answers: [{answer, length, solved}, ...]
+  let pool = [];          // every letter tile: [{id, char, placed}, ...]
+  let rows = [];          // the 5 on-screen rows: [{length, slots:[tileId|null,...], solved, solvedAnswer}, ...]
+  let activeRow = 0;      // which row tap-to-place currently targets
+  let unsuccessful = 0;   // count of wrong/close attempts (drives hints)
+  let tileSeq = 0;        // used to hand out unique tile ids like 't0','t1',...
+
+  // Cached references to the DOM elements we update repeatedly.
   const rowsEl = document.getElementById('rows');
   const poolEl = document.getElementById('pool');
   const feedbackEl = document.getElementById('feedback');
@@ -509,6 +727,7 @@
   const hintsPanelEl = document.getElementById('hintsPanel');
   const winBannerEl = document.getElementById('winBanner');
 
+  // Fisher-Yates shuffle — mutates and returns the given array.
   function shuffleArr(arr){
     for (let i = arr.length - 1; i > 0; i--){
       const j = Math.floor(Math.random() * (i+1));
@@ -518,20 +737,26 @@
   }
 
   function normalize(s){ return s.toUpperCase(); }
+  // A word's letters, alphabetized — two words are anagrams of each
+  // other exactly when this comes out the same for both.
   function sortedChars(s){ return normalize(s).split('').sort().join(''); }
 
+  // Sets up a fresh puzzle: builds the row shapes, shuffles all the
+  // letters into the bank, and resets every piece of per-puzzle state.
   function startPuzzle(idx){
     puzzleIndex = idx;
     const puzzle = PUZZLES[idx];
     words = puzzle.words.map(w => ({ answer: w, length: w.length, solved: false }));
 
-    // build rows: 4 of length 5, 1 of length 4, order shuffled so the
-    // 4-letter row isn't always last
+    // Build 5 rows matching the 5 answers' lengths (four 5s, one 4),
+    // but shuffle the ORDER of the rows so the short row isn't always
+    // in the same visual position — the length badge still tells the
+    // player which is which, but it adds a little variety.
     const lengths = words.map(w => w.length);
     shuffleArr(lengths);
     rows = lengths.map(len => ({ length: len, slots: new Array(len).fill(null), solved: false, solvedAnswer: null }));
 
-    // build pool tiles from all letters of all words
+    // Every letter from every answer, all mixed together into one bank.
     let letters = [];
     words.forEach(w => { letters = letters.concat(w.answer.split('')); });
     tileSeq = 0;
@@ -546,8 +771,17 @@
     feedbackEl.className = 'feedback-row';
     renderHints();
     render();
+
+    // FUTURE FEATURE: this is where the timer would start and the
+    // leaderboard would be fetched. See the disabled block near the
+    // bottom of this file — it calls startTimer() and loadLeaderboard()
+    // from right here once re-enabled.
   }
 
+  // Draws the hints panel: each hint is either a locked placeholder
+  // ("🔒 unlocks after N unsuccessful attempts") or, once unlocked,
+  // the actual hint text. Pass forceAll=true (used when the puzzle is
+  // won) to reveal every hint regardless of the attempt count.
   function renderHints(forceAll){
     hintsPanelEl.innerHTML = '';
     const hints = PUZZLES[puzzleIndex].hints || [];
@@ -565,8 +799,16 @@
 
   function findTile(id){ return pool.find(t => t.id === id); }
 
+  // ══════════════════════════════════════════════════════════════════
+  // RENDERING
+  // render() is the one function that draws the rows and the letter
+  // bank on screen. It's called after every change to game state
+  // (placing a tile, solving a row, starting a new puzzle, etc.) and
+  // simply rebuilds the relevant HTML from scratch each time — simpler
+  // to reason about than trying to patch the DOM incrementally.
+  // ══════════════════════════════════════════════════════════════════
   function render(){
-    // rows
+    // --- the 5 word rows ---
     rowsEl.innerHTML = '';
     rows.forEach((row, ri) => {
       const wrap = document.createElement('div');
@@ -579,6 +821,8 @@
 
       const rowEl = document.createElement('div');
       rowEl.className = 'row' + (ri === activeRow ? ' active' : '') + (row.solved ? ' solved' : '');
+      // Clicking anywhere on an unsolved row makes it the "active" row,
+      // which is where tap-to-place (the non-drag fallback) will fill next.
       rowEl.addEventListener('click', () => {
         if (!row.solved) { activeRow = ri; render(); }
       });
@@ -586,13 +830,15 @@
       row.slots.forEach((tileId, si) => {
         const slotEl = document.createElement('div');
         slotEl.className = 'slot' + (tileId ? ' filled' : '');
-        slotEl.dataset.row = ri;
+        slotEl.dataset.row = ri;   // used by the drag system to know where a drop landed
         slotEl.dataset.slot = si;
         if (tileId){
           const t = findTile(tileId);
           slotEl.textContent = t ? t.char : '';
           if (!row.solved){
             slotEl.dataset.tileId = tileId;
+            // A filled slot in an unsolved row can itself be dragged
+            // (to move it elsewhere) or tapped (to send it back to the bank).
             attachDragAndTap(slotEl, tileId, { type: 'slot', rowIdx: ri, slotIdx: si });
           }
         }
@@ -603,7 +849,7 @@
       rowsEl.appendChild(wrap);
     });
 
-    // pool
+    // --- the letter bank (only shows tiles not currently placed) ---
     poolEl.innerHTML = '';
     pool.filter(t => !t.placed).forEach(t => {
       const tileEl = document.createElement('div');
@@ -615,12 +861,22 @@
     });
   }
 
-  // --- Drag-and-drop (pointer events) with tap-to-place fallback ---
-  const DRAG_THRESHOLD = 6;
-  let dragState = null;
+  // ══════════════════════════════════════════════════════════════════
+  // DRAG-AND-DROP (with tap-to-place as a fallback)
+  // Built on pointer events so the same code handles mouse AND touch.
+  // A pointerdown starts tracking; if the pointer moves more than
+  // DRAG_THRESHOLD pixels before release, it becomes a drag (a floating
+  // "ghost" copy of the tile follows the cursor/finger). If it doesn't
+  // move that far, pointerup is treated as a simple tap instead.
+  // ══════════════════════════════════════════════════════════════════
+  const DRAG_THRESHOLD = 6; // pixels of movement before a tap becomes a drag
+  let dragState = null;     // tracks the in-progress drag/tap, or null when idle
 
+  // Wires up both drag and tap handling on one element (a bank tile,
+  // or a filled slot). `from` records where this tile currently lives,
+  // e.g. {type:'pool'} or {type:'slot', rowIdx, slotIdx}.
   function attachDragAndTap(el, tileId, from){
-    el.style.touchAction = 'none';
+    el.style.touchAction = 'none'; // stop the browser from scrolling on touch-drag
     el.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       dragState = {
@@ -630,7 +886,7 @@
         ghost: null,
         sourceEl: el
       };
-      el.setPointerCapture(e.pointerId);
+      el.setPointerCapture(e.pointerId); // keep receiving move/up events even if the pointer leaves this element
     });
     el.addEventListener('pointermove', (e) => onPointerMove(e));
     el.addEventListener('pointerup', (e) => onPointerUp(e));
@@ -641,6 +897,9 @@
     if (!dragState) return;
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
+
+    // First move past the threshold: officially become a drag, and
+    // create the floating "ghost" tile that visually follows the cursor.
     if (!dragState.dragging && Math.hypot(dx, dy) > DRAG_THRESHOLD){
       dragState.dragging = true;
       const rect = dragState.sourceEl.getBoundingClientRect();
@@ -651,15 +910,18 @@
       ghost.style.width = rect.width + 'px';
       ghost.style.height = rect.height + 'px';
       ghost.style.margin = '0';
-      ghost.style.pointerEvents = 'none';
+      ghost.style.pointerEvents = 'none'; // so it never blocks elementAt() below
       ghost.style.zIndex = '999';
       ghost.style.opacity = '0.9';
       ghost.style.transform = 'scale(1.08) rotate(-2deg)';
       ghost.style.boxShadow = '0 6px 14px var(--shadow)';
       document.body.appendChild(ghost);
       dragState.ghost = ghost;
-      dragState.sourceEl.style.opacity = '0.25';
+      dragState.sourceEl.style.opacity = '0.25'; // fade the original in place
     }
+
+    // While dragging: move the ghost, and highlight whatever slot/pool
+    // area is currently underneath the cursor as a drop target.
     if (dragState.dragging && dragState.ghost){
       const rect = dragState.sourceEl.getBoundingClientRect();
       dragState.ghost.style.left = (rect.left + dx) + 'px';
@@ -674,10 +936,12 @@
     if (!dragState) return;
     clearDropHover();
     if (dragState.dragging){
+      // Was a real drag: figure out what's under the release point and drop there.
       const target = elementAt(e.clientX, e.clientY);
       handleDrop(dragState.tileId, dragState.from, target);
       if (dragState.ghost) dragState.ghost.remove();
     } else {
+      // Never moved past the threshold: treat it as a simple tap.
       handleTap(dragState.tileId, dragState.from);
     }
     dragState = null;
@@ -687,13 +951,16 @@
     if (dragState && dragState.ghost) dragState.ghost.remove();
     clearDropHover();
     dragState = null;
-    render();
+    render(); // restore the faded-out original tile
   }
 
   function clearDropHover(){
     document.querySelectorAll('.drop-hover').forEach(el => el.classList.remove('drop-hover'));
   }
 
+  // Finds the slot (or the pool area) under a given screen point,
+  // ignoring the floating ghost element itself (which has
+  // pointer-events:none, so it never shows up in this list anyway).
   function elementAt(x, y){
     const slotEl = document.elementsFromPoint(x, y).find(el => el.classList && el.classList.contains('slot'));
     if (slotEl) return slotEl;
@@ -702,24 +969,26 @@
     return null;
   }
 
+  // Tap-to-place fallback (used when a tap doesn't turn into a drag).
   function handleTap(tileId, from){
     if (from.type === 'pool'){
-      // tap a bank tile: drop into the active row's next empty slot
+      // Tapped a bank tile: drop it into the active row's next empty slot.
       const row = rows[activeRow];
       if (!row || row.solved) return;
       const emptyIdx = row.slots.findIndex(s => s === null);
-      if (emptyIdx === -1) return;
+      if (emptyIdx === -1) return; // that row is already full
       moveTileTo(tileId, { type: 'slot', rowIdx: activeRow, slotIndex: emptyIdx });
     } else {
-      // tap a placed tile: send it back to the bank
+      // Tapped a placed tile: send it back to the bank.
       moveTileTo(tileId, { type: 'pool' });
     }
     render();
     maybeAutoCheck([from.type === 'slot' ? from.rowIdx : activeRow]);
   }
 
+  // Real drag-and-drop: called on pointerup once we know what's under the cursor.
   function handleDrop(tileId, from, target){
-    if (!target){ render(); return; }
+    if (!target){ render(); return; } // dropped somewhere with no valid target — snap back
     const affectedRows = new Set();
     if (from.type === 'slot') affectedRows.add(from.rowIdx);
 
@@ -728,7 +997,7 @@
     } else if (target.classList && target.classList.contains('slot')){
       const rowIdx = Number(target.dataset.row);
       const slotIdx = Number(target.dataset.slot);
-      if (rows[rowIdx].solved){ render(); return; }
+      if (rows[rowIdx].solved){ render(); return; } // can't drop into a locked/solved row
       moveTileTo(tileId, { type: 'slot', rowIdx, slotIndex: slotIdx });
       affectedRows.add(rowIdx);
     }
@@ -736,9 +1005,14 @@
     maybeAutoCheck([...affectedRows]);
   }
 
+  // The single function that actually moves a tile from wherever it
+  // currently is to wherever it's going — the bank, an empty slot, or
+  // swapping places with whatever tile is already in the target slot.
   function moveTileTo(tileId, target){
     const tile = findTile(tileId);
     if (!tile) return;
+
+    // Find the tile's current location (if any) among the rows.
     let fromRow = null, fromSlot = null;
     rows.forEach((r, ri) => r.slots.forEach((id, si) => { if (id === tileId){ fromRow = ri; fromSlot = si; } }));
 
@@ -751,12 +1025,15 @@
     const destRow = rows[target.rowIdx];
     if (destRow.solved) return;
     const destTileId = destRow.slots[target.slotIndex];
-    if (destTileId === tileId) return; // dropped on itself
+    if (destTileId === tileId) return; // dropped back on itself — no-op
 
+    // Remove the tile from its old spot first...
     if (fromRow !== null) rows[fromRow].slots[fromSlot] = null;
 
     if (destTileId){
-      // swap: bump the tile that was there to the dragged tile's old spot
+      // ...the destination slot already had a tile in it, so that tile
+      // needs to go SOMEWHERE: either back to where our dragged tile
+      // came from (a true swap), or to the bank (if ours came from the bank).
       const destTile = findTile(destTileId);
       if (fromRow !== null){
         rows[fromRow].slots[fromSlot] = destTileId;
@@ -768,6 +1045,9 @@
     tile.placed = true;
   }
 
+  // After a move, check whether any affected row just became completely
+  // full — if so, trigger the correctness check for it (with a tiny
+  // delay so the tile visually lands before feedback appears).
   function maybeAutoCheck(rowIdxs){
     rowIdxs.forEach(ri => {
       if (ri === null || ri === undefined) return;
@@ -778,6 +1058,8 @@
     });
   }
 
+  // Empties every slot in a row back into the bank (used after a wrong
+  // guess, and by the "Clear selected row" button).
   function clearRow(rowIdx){
     const row = rows[rowIdx];
     if (!row || row.solved) return;
@@ -791,6 +1073,19 @@
     render();
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // THE CORE GUESS-CHECKING LOGIC
+  // Called whenever a row becomes completely full. Three outcomes:
+  //   1. CORRECT  — the letters exactly match one of the still-unsolved
+  //                 answers of the same length. Row locks green.
+  //   2. CLOSE    — not correct, but an anagram (same letters, any
+  //                 order) of one of the still-unsolved answers.
+  //   3. WRONG    — anything else.
+  // Note this checks against ALL unsolved answers of the matching
+  // length, not just "the word meant for this row" — so a 5-letter
+  // answer is accepted in ANY of the four 5-letter rows, whichever the
+  // player happens to use.
+  // ══════════════════════════════════════════════════════════════════
   function checkRow(rowIdx){
     const row = rows[rowIdx];
     if (row.solved) return;
@@ -805,6 +1100,8 @@
       row.solvedAnswer = exact.answer;
       feedbackEl.textContent = '✓ ' + exact.answer + ' — that is one of the five.';
       feedbackEl.className = 'feedback-row correct';
+      // Jump the "active row" pointer to the next unsolved row, so
+      // tap-to-place naturally continues into a row that still needs filling.
       const nextUnsolved = rows.findIndex(r => !r.solved);
       if (nextUnsolved !== -1) activeRow = nextUnsolved;
       render();
@@ -824,42 +1121,266 @@
       rowEl.classList.add('flash-wrong');
     }
 
+    // Every non-correct attempt counts toward unlocking hints.
     unsuccessful += 1;
     attemptCountEl.textContent = String(unsuccessful);
     renderHints();
 
+    // Give the flash animation a moment to be seen before clearing the row.
     setTimeout(() => {
       clearRow(rowIdx);
     }, 650);
   }
 
+  // Called after every correct row, to check whether ALL 5 are now solved.
   function checkWin(){
     if (words.every(w => w.solved)){
-      renderHints(true);
+      renderHints(true); // reveal every hint as a nice recap, win or not
       const recap = (PUZZLES[puzzleIndex].hints && PUZZLES[puzzleIndex].hints[0]) || '';
       winBannerEl.textContent = '🎉 Solved it! ' + recap;
       winBannerEl.classList.add('show');
       feedbackEl.textContent = '';
+
+      // FUTURE FEATURE: this is where the timer would stop and, if the
+      // player is signed in, their time would be submitted to the
+      // leaderboard. See the disabled block below.
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // BUTTONS
+  // ══════════════════════════════════════════════════════════════════
   document.getElementById('clearBtn').addEventListener('click', () => clearRow(activeRow));
   document.getElementById('shuffleBtn').addEventListener('click', () => {
+    // Purely cosmetic — re-shuffles the visual order of tiles still in
+    // the bank. Doesn't affect gameplay, just makes the bank feel "mixed."
     const unplaced = pool.filter(t => !t.placed);
     shuffleArr(unplaced);
     const placed = pool.filter(t => t.placed);
     pool = placed.concat(unplaced);
     render();
   });
-  document.getElementById('newBtn').addEventListener('click', () => {
-    const next = (puzzleIndex + 1) % PUZZLES.length;
-    startPuzzle(next);
-  });
 
+  /* ════════════════════════════════════════════════════════════════════
+     FUTURE FEATURE — Timer, Google Sign-In, and Leaderboard
+     (currently disabled — this entire block is one big comment)
+
+     WHAT THIS ADDS, once turned on:
+       • A live stopwatch that starts when the puzzle loads and stops
+         the instant it's solved.
+       • A "Sign in with Google" button. Once signed in, a player's
+         name is attached to their solve time.
+       • On solving, the signed-in player's time is sent to a small
+         backend (a Google Apps Script attached to your puzzle
+         spreadsheet) which appends it to a "Leaderboard" tab.
+       • A leaderboard panel showing the fastest times FOR THE CURRENT
+         PUZZLE ONLY (scores are tagged with a "puzzle key" computed
+         from the answer words, so swapping in a new puzzle in Sheet 1
+         automatically gives everyone a fresh leaderboard).
+
+     HOW TO TURN THIS ON LATER:
+       1. Uncomment the Google Sign-In <script src="https://accounts.google.com/gsi/client">
+          tag in the <head> of this file.
+       2. Uncomment the CSS block in <style> marked
+          "FUTURE FEATURE — styles for the timer / sign-in / leaderboard UI".
+       3. Uncomment the HTML for the "Time" pill (in the status bar),
+          the sign-in button area, and the leaderboard panel (all marked
+          "FUTURE FEATURE" above, in the <body>).
+       4. Uncomment this entire JS block (delete the comment markers around it).
+       5. Fill in GOOGLE_CLIENT_ID and LEADERBOARD_API_URL near the top
+          of this script (uncomment those two lines too).
+       6. Restore the three call-sites that hook this feature into the
+          rest of the game:
+            - in startPuzzle(): call startTimer() and loadLeaderboard()
+              at the end (right where the comment says so).
+            - in checkWin(): capture stopTimer()'s return value as
+              finalTime, include it in the win message via formatTime(),
+              and call submitScore()/show the sign-in prompt as shown
+              in the code below.
+            - in init() (bottom of file): call initGoogleSignIn() after
+              startPuzzle(0).
+       7. Follow the spreadsheet + Apps Script + OAuth Client ID setup
+          steps (a Leaderboard tab, the Apps Script file, and a Google
+          Cloud OAuth Client ID) that were provided separately.
+
+  // Formats a number of seconds as "m:ss.t" for display, e.g. 75.34 → "1:15.3"
+  function formatTime(totalSeconds){
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = (totalSeconds % 60).toFixed(1);
+    return mins + ':' + (secs < 10 ? '0' : '') + secs;
+  }
+
+  function startTimer(){
+    if (timerInterval) clearInterval(timerInterval);
+    timerStartMs = Date.now();
+    elapsedSeconds = 0;
+    timerStopped = false;
+    timerDisplayEl.textContent = '0:00.0';
+    timerInterval = setInterval(() => {
+      elapsedSeconds = (Date.now() - timerStartMs) / 1000;
+      timerDisplayEl.textContent = formatTime(elapsedSeconds);
+    }, 100);
+  }
+
+  function stopTimer(){
+    if (timerStopped) return elapsedSeconds;
+    timerStopped = true;
+    elapsedSeconds = (Date.now() - timerStartMs) / 1000;
+    timerDisplayEl.textContent = formatTime(elapsedSeconds);
+    if (timerInterval) clearInterval(timerInterval);
+    return elapsedSeconds;
+  }
+
+  // Decodes the JWT ("ID token") Google hands back after sign-in, to
+  // read the player's name/email out of it. This just reads the
+  // token's payload — it does NOT cryptographically verify it, which
+  // is fine here since we're only using it to label a leaderboard
+  // entry, not to gate access to anything sensitive.
+  function decodeJwt(token){
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+    return JSON.parse(json);
+  }
+
+  // Called automatically by Google's sign-in library once someone signs in.
+  function handleCredentialResponse(response){
+    try {
+      const payload = decodeJwt(response.credential);
+      currentUser = { name: payload.name, email: payload.email };
+      gSignInDivEl.style.display = 'none';
+      signedInAsEl.style.display = 'inline-block';
+      signedInAsEl.textContent = 'Signed in as ' + currentUser.name;
+      // If they solved the puzzle BEFORE signing in, we stashed their
+      // time in pendingScoreSeconds — submit it now that we know who they are.
+      if (pendingScoreSeconds !== null){
+        submitScore(currentUser, pendingScoreSeconds);
+        pendingScoreSeconds = null;
+        const prompt = winBannerEl.querySelector('.sign-in-prompt');
+        if (prompt) prompt.remove();
+      }
+    } catch (err){
+      console.warn('Could not process Google sign-in response.', err);
+    }
+  }
+
+  // Sets up the "Sign in with Google" button. Retries a few times in
+  // case the Google script (loaded with async/defer) hasn't finished
+  // loading yet by the time this first runs.
+  function initGoogleSignIn(attemptsLeft){
+    if (attemptsLeft === undefined) attemptsLeft = 10;
+    if (!GOOGLE_CLIENT_ID) return; // feature not configured — skip silently
+    if (!window.google || !window.google.accounts || !window.google.accounts.id){
+      if (attemptsLeft > 0){
+        setTimeout(() => initGoogleSignIn(attemptsLeft - 1), 300);
+      } else {
+        console.warn('Google Identity script did not load — sign-in unavailable here.');
+      }
+      return;
+    }
+    try {
+      google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredentialResponse });
+      google.accounts.id.renderButton(gSignInDivEl, { theme: 'outline', size: 'medium', text: 'signin' });
+    } catch (err){
+      console.warn('Google sign-in could not be initialized.', err);
+    }
+  }
+
+  // Sends a solved time to the Apps Script backend. Uses mode:'no-cors'
+  // as a fire-and-forget request — we don't need to read the response,
+  // just avoid it being blocked, so we don't bother handling a reply.
+  // After a short delay (to give the sheet a moment to update), refresh
+  // the visible leaderboard.
+  function submitScore(user, timeSeconds){
+    if (!LEADERBOARD_API_URL) return;
+    fetch(LEADERBOARD_API_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({
+        name: user.name,
+        email: user.email,
+        timeSeconds: Math.round(timeSeconds * 10) / 10,
+        puzzleKey: puzzleKey
+      })
+    }).catch(err => console.warn('Could not submit score.', err))
+      .finally(() => setTimeout(loadLeaderboard, 1200));
+  }
+
+  // Reads the leaderboard back via JSONP (a script tag whose URL
+  // returns "yourCallbackName([...data])"). This sidesteps the CORS
+  // restrictions that a plain fetch() would likely hit against a
+  // Google Apps Script Web App, since browsers don't apply CORS rules
+  // to <script> tags the way they do to fetch requests.
+  function fetchLeaderboardJSONP(key){
+    return new Promise((resolve, reject) => {
+      const cbName = 'lbCallback_' + Date.now();
+      const script = document.createElement('script');
+      const cleanup = () => { delete window[cbName]; script.remove(); };
+      window[cbName] = (data) => { cleanup(); resolve(data); };
+      script.onerror = () => { cleanup(); reject(new Error('JSONP request failed')); };
+      script.src = LEADERBOARD_API_URL + '?action=leaderboard&puzzleKey=' + encodeURIComponent(key) + '&callback=' + cbName;
+      document.body.appendChild(script);
+      setTimeout(() => { if (window[cbName]){ cleanup(); reject(new Error('JSONP timeout')); } }, 8000);
+    });
+  }
+
+  function renderLeaderboard(list){
+    leaderboardListEl.innerHTML = '';
+    if (!list || !list.length){
+      leaderboardPanelEl.style.display = 'block';
+      const li = document.createElement('li');
+      li.className = 'leaderboard-empty';
+      li.textContent = 'No times yet for this puzzle — be the first!';
+      leaderboardListEl.appendChild(li);
+      return;
+    }
+    leaderboardPanelEl.style.display = 'block';
+    list.forEach((entry, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = '<span><span class="rank">#' + (i + 1) + '</span>' + entry.name + '</span>' +
+                      '<span class="lb-time">' + formatTime(entry.timeSeconds) + '</span>';
+      leaderboardListEl.appendChild(li);
+    });
+  }
+
+  function loadLeaderboard(){
+    if (!LEADERBOARD_API_URL) { leaderboardPanelEl.style.display = 'none'; return; }
+    fetchLeaderboardJSONP(puzzleKey)
+      .then(renderLeaderboard)
+      .catch(err => console.warn('Could not load leaderboard.', err));
+  }
+
+     Extra state variables this feature needs (add these back up in the
+     GAME STATE section, and the matching DOM refs, when re-enabling):
+
+  let puzzleKey = '';              // computed in startPuzzle(): puzzle.words.slice().sort().join('-')
+  let currentUser = null;          // {name, email} once signed in
+  let pendingScoreSeconds = null;  // a solve time waiting on sign-in before it can be submitted
+  let timerInterval = null;
+  let timerStartMs = null;
+  let elapsedSeconds = 0;
+  let timerStopped = false;
+
+  const timerDisplayEl = document.getElementById('timerDisplay');
+  const signedInAsEl = document.getElementById('signedInAs');
+  const gSignInDivEl = document.getElementById('gSignInDiv');
+  const leaderboardPanelEl = document.getElementById('leaderboardPanel');
+  const leaderboardListEl = document.getElementById('leaderboardList');
+
+     END FUTURE FEATURE (Timer, Google Sign-In, and Leaderboard)
+     ════════════════════════════════════════════════════════════════════ */
+
+  // ══════════════════════════════════════════════════════════════════
+  // STARTUP
+  // Load puzzles from the sheet (falling back to the built-in ones),
+  // then kick off the first puzzle.
+  // ══════════════════════════════════════════════════════════════════
   async function init(){
     const loaded = await loadPuzzlesFromSheet(SHEET_CSV_URL);
     PUZZLES = (loaded && loaded.length) ? loaded : DEFAULT_PUZZLES;
     startPuzzle(0);
+    // FUTURE FEATURE: initGoogleSignIn() would be called here.
   }
   init();
 })();
